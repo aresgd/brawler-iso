@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MAX_HP, PLAYER_SPEED, PLAYER_RADIUS, PLAYER_HEIGHT, SPELLS, KNOCKBACK_CAP } from './config.js';
 import { scene } from './scene.js';
-import { getMovementVector, isKeyJustPressed, mouseWorld } from './input.js';
+import { getMovementVector, isKeyJustPressed, isMouseJustPressed, mouseWorld } from './input.js';
 
 export class Player {
   constructor(index, color, spawnPos, bindings, { useMouseAim = false } = {}) {
@@ -18,18 +18,23 @@ export class Player {
     this.grounded = true;
 
     this.cooldowns = {
-      hook: 0,
-      fireball: 0,
       shockwave: 0,
+      fireball: 0,
+      hook: 0,
       dash: 0,
+      shield: 0,
     };
 
     this.activeHook = null;
 
+    // Shield state
+    this.shieldActive = false;
+    this.shieldTimer = 0;
+    this.shieldMesh = null;
+
     // Build mesh
     this.group = new THREE.Group();
 
-    // Body - rounded cylinder with beveled edges
     const bodyGeo = new THREE.CylinderGeometry(PLAYER_RADIUS * 0.9, PLAYER_RADIUS, PLAYER_HEIGHT, 16, 1);
     const bodyMat = new THREE.MeshStandardMaterial({
       color,
@@ -41,7 +46,6 @@ export class Player {
     body.castShadow = true;
     this.group.add(body);
 
-    // Head - sphere with slight emissive glow
     const headGeo = new THREE.SphereGeometry(PLAYER_RADIUS * 0.75, 16, 12);
     const headMat = new THREE.MeshStandardMaterial({
       color,
@@ -55,7 +59,6 @@ export class Player {
     head.castShadow = true;
     this.group.add(head);
 
-    // Eye visor - dark strip across the face
     const visorGeo = new THREE.BoxGeometry(PLAYER_RADIUS * 1.2, PLAYER_RADIUS * 0.2, PLAYER_RADIUS * 0.15);
     const visorMat = new THREE.MeshStandardMaterial({
       color: 0x111111,
@@ -68,7 +71,6 @@ export class Player {
     visor.position.set(0, PLAYER_HEIGHT + PLAYER_RADIUS * 0.35, -(PLAYER_RADIUS * 0.65));
     this.group.add(visor);
 
-    // Shoulder pads
     const shoulderGeo = new THREE.SphereGeometry(PLAYER_RADIUS * 0.35, 8, 6);
     const shoulderMat = new THREE.MeshStandardMaterial({
       color,
@@ -83,7 +85,6 @@ export class Player {
       this.group.add(shoulder);
     }
 
-    // Direction indicator - glowing arrow-like cone
     const indicatorGeo = new THREE.ConeGeometry(0.18, 0.5, 6);
     const indicatorMat = new THREE.MeshStandardMaterial({
       color: 0xffffff,
@@ -95,7 +96,6 @@ export class Player {
     this.indicator.position.set(0, PLAYER_HEIGHT * 0.5, -PLAYER_RADIUS - 0.35);
     this.group.add(this.indicator);
 
-    // Ground ring (selection circle feel)
     const ringGeo = new THREE.TorusGeometry(PLAYER_RADIUS + 0.15, 0.04, 8, 24);
     const ringMat = new THREE.MeshStandardMaterial({
       color,
@@ -142,6 +142,14 @@ export class Player {
       if (this.cooldowns[key] > 0) this.cooldowns[key] -= dt;
     }
 
+    // Shield timer
+    if (this.shieldActive) {
+      this.shieldTimer -= dt;
+      if (this.shieldTimer <= 0) {
+        this._removeShield();
+      }
+    }
+
     // Pulse ground ring
     if (this.groundRing) {
       const pulse = 0.5 + Math.sin(performance.now() * 0.003) * 0.15;
@@ -152,8 +160,20 @@ export class Player {
   getSpellIntent() {
     if (!this.alive) return null;
 
-    // Hook: Q to throw, Q again to reactivate (pull to latched target)
-    if (isKeyJustPressed(this.bindings.spell1)) {
+    // LMB: shockwave
+    if (isMouseJustPressed('left') && this.cooldowns.shockwave <= 0) {
+      this.cooldowns.shockwave = SPELLS.shockwave.cooldown;
+      return { spell: 'shockwave', caster: this };
+    }
+
+    // RMB: fireball
+    if (isMouseJustPressed('right') && this.cooldowns.fireball <= 0) {
+      this.cooldowns.fireball = SPELLS.fireball.cooldown;
+      return { spell: 'fireball', caster: this };
+    }
+
+    // Q: hook (reactivate if latched)
+    if (isKeyJustPressed(this.bindings.hook)) {
       if (this.activeHook && this.activeHook.latched) {
         return { spell: 'hook_reactivate', caster: this };
       } else if (this.cooldowns.hook <= 0 && !this.activeHook) {
@@ -162,18 +182,50 @@ export class Player {
       }
     }
 
-    const spellKeys = [
-      { key: this.bindings.spell2, spell: 'fireball' },
-      { key: this.bindings.spell3, spell: 'shockwave' },
-      { key: this.bindings.spell4, spell: 'dash' },
-    ];
-    for (const { key, spell } of spellKeys) {
-      if (isKeyJustPressed(key) && this.cooldowns[spell] <= 0) {
-        this.cooldowns[spell] = SPELLS[spell].cooldown;
-        return { spell, caster: this };
-      }
+    // Space: dash
+    if (isKeyJustPressed(this.bindings.dash) && this.cooldowns.dash <= 0) {
+      this.cooldowns.dash = SPELLS.dash.cooldown;
+      return { spell: 'dash', caster: this };
     }
+
+    // E: shield
+    if (isKeyJustPressed(this.bindings.shield) && this.cooldowns.shield <= 0 && !this.shieldActive) {
+      this.cooldowns.shield = SPELLS.shield.cooldown;
+      this._activateShield();
+      return null; // shield is self-buff, no spell entity
+    }
+
     return null;
+  }
+
+  _activateShield() {
+    this.shieldActive = true;
+    this.shieldTimer = SPELLS.shield.duration;
+
+    // Visual: translucent sphere around player
+    const geo = new THREE.SphereGeometry(PLAYER_RADIUS + 0.4, 16, 12);
+    const mat = new THREE.MeshStandardMaterial({
+      color: SPELLS.shield.color,
+      emissive: SPELLS.shield.color,
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: 0.25,
+      side: THREE.DoubleSide,
+    });
+    this.shieldMesh = new THREE.Mesh(geo, mat);
+    this.shieldMesh.position.y = PLAYER_HEIGHT * 0.5;
+    this.group.add(this.shieldMesh);
+  }
+
+  _removeShield() {
+    this.shieldActive = false;
+    this.shieldTimer = 0;
+    if (this.shieldMesh) {
+      this.group.remove(this.shieldMesh);
+      this.shieldMesh.geometry.dispose();
+      this.shieldMesh.material.dispose();
+      this.shieldMesh = null;
+    }
   }
 
   getFacingDirection() {
@@ -190,23 +242,29 @@ export class Player {
 
   takeDamage(amount, knockbackDir, basePower) {
     if (!this.alive) return;
-    this.hp = Math.max(0, this.hp - amount);
+
+    // Shield reduces damage and knockback
+    let dmg = amount;
+    let kb = basePower;
+    if (this.shieldActive) {
+      dmg *= SPELLS.shield.damageReduction;
+      kb *= SPELLS.shield.knockbackReduction;
+    }
+
+    this.hp = Math.max(0, this.hp - dmg);
 
     const hpRatio = this.maxHp / Math.max(this.hp, 1);
-    const effectivePower = basePower * Math.min(hpRatio, KNOCKBACK_CAP);
+    const effectivePower = kb * Math.min(hpRatio, KNOCKBACK_CAP);
 
-    // Horizontal knockback only
     this.velocity.x += knockbackDir.x * effectivePower;
     this.velocity.z += knockbackDir.z * effectivePower;
 
-    // Flash the body on hit
     this._flashHit();
   }
 
   _flashHit() {
     this.group.traverse((child) => {
       if (child.isMesh && child.material.emissive) {
-        // Store base intensity once to avoid race conditions on rapid hits
         if (child.userData._baseEmissive === undefined) {
           child.userData._baseEmissive = child.material.emissiveIntensity;
         }
@@ -221,6 +279,7 @@ export class Player {
 
   eliminate() {
     this.alive = false;
+    this._removeShield();
     this.group.traverse((child) => {
       if (child.isMesh) {
         child.material.transparent = true;
@@ -236,11 +295,11 @@ export class Player {
     this.group.position.copy(spawnPos);
     this.group.position.y = 0;
     this.grounded = true;
-    this.cooldowns = { hook: 0, fireball: 0, shockwave: 0, dash: 0 };
+    this.cooldowns = { shockwave: 0, fireball: 0, hook: 0, dash: 0, shield: 0 };
     this.activeHook = null;
+    this._removeShield();
     this.group.traverse((child) => {
       if (child.isMesh) {
-        // Preserve transparent flag for materials that need it (e.g. ground ring)
         if (child === this.groundRing) {
           child.material.opacity = 0.6;
         } else {

@@ -27,14 +27,15 @@ function init() {
   initScene();
   createArena();
 
+  // LMB=shockwave, RMB=fireball, Q=hook, Space=dash, E=shield
   const p1 = new Player(0, 0x4fc3f7, SPAWN_POSITIONS[0].clone(), {
     up: 'KeyW', down: 'KeyS', left: 'KeyA', right: 'KeyD',
-    spell1: 'KeyQ', spell2: 'KeyE', spell3: 'Space', spell4: 'KeyR',
+    hook: 'KeyQ', dash: 'Space', shield: 'KeyE',
   }, { useMouseAim: true });
 
   const p2 = new Player(1, 0xef5350, SPAWN_POSITIONS[1].clone(), {
     up: '_', down: '_', left: '_', right: '_',
-    spell1: '_', spell2: '_', spell3: '_', spell4: '_',
+    hook: '_', dash: '_', shield: '_',
   });
 
   players = [p1, p2];

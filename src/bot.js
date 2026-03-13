@@ -42,6 +42,14 @@ export class Bot {
     for (const key of Object.keys(p.cooldowns)) {
       if (p.cooldowns[key] > 0) p.cooldowns[key] -= dt;
     }
+
+    // Tick shield timer
+    if (p.shieldActive) {
+      p.shieldTimer -= dt;
+      if (p.shieldTimer <= 0) {
+        p._removeShield();
+      }
+    }
   }
 
   think() {
@@ -147,9 +155,13 @@ export class Bot {
       this.wantSpell = 'dash';
     }
 
+    // Shield when low HP and target is close (defensive)
+    if (!p.shieldActive && p.cooldowns.shield <= 0 && p.hp < p.maxHp * 0.5 && dist < 5) {
+      this.wantSpell = 'shield';
+    }
+
     // Reactivate hook if latched to obstacle (pull self toward it for mobility)
     if (p.activeHook && p.activeHook.latched) {
-      // Reactivate if it latched onto an obstacle and we're in danger, or sometimes for movement
       if (inDangerZone || Math.random() > 0.7) {
         this.wantSpell = 'hook_reactivate';
       }
@@ -163,6 +175,14 @@ export class Bot {
 
     if (spell === 'hook_reactivate') {
       return { spell: 'hook_reactivate', caster: this.player };
+    }
+
+    if (spell === 'shield') {
+      if (this.player.cooldowns.shield <= 0 && !this.player.shieldActive) {
+        this.player.cooldowns.shield = SPELLS.shield.cooldown;
+        this.player._activateShield();
+      }
+      return null;
     }
 
     if (this.player.cooldowns[spell] <= 0) {

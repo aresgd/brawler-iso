@@ -15,8 +15,25 @@ window.addEventListener('mousemove', (e) => {
   mouse.y = e.clientY;
 });
 
+// Mouse buttons
+export const mouseButtons = { left: false, right: false };
+const prevMouseButtons = { left: false, right: false };
+
+window.addEventListener('mousedown', (e) => {
+  if (e.button === 0) mouseButtons.left = true;
+  if (e.button === 2) mouseButtons.right = true;
+});
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 0) mouseButtons.left = false;
+  if (e.button === 2) mouseButtons.right = false;
+});
+
 // Prevent right-click context menu from interfering with gameplay
 window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+export function isMouseJustPressed(button) {
+  return mouseButtons[button] && !prevMouseButtons[button];
+}
 
 export function updateMouseWorld(camera) {
   _mouseNDC.x = (mouse.x / window.innerWidth) * 2 - 1;
@@ -79,4 +96,6 @@ export function updateInputState() {
   for (const code of GAME_KEYS) {
     prevKeys[code] = !!keys[code];
   }
+  prevMouseButtons.left = mouseButtons.left;
+  prevMouseButtons.right = mouseButtons.right;
 }

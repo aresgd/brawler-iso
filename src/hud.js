@@ -1,6 +1,6 @@
 import { SPELLS, MAX_HP, WINS_TO_MATCH } from './config.js';
 
-const spellNames = ['hook', 'fireball', 'shockwave', 'dash'];
+const spellNames = ['shockwave', 'fireball', 'hook', 'dash', 'shield'];
 
 export function initHUD(players) {
   for (const p of players) {
