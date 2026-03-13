@@ -240,7 +240,13 @@ export class Player {
     return this.group.position;
   }
 
-  takeDamage(amount, knockbackDir, basePower) {
+  /**
+   * @param {number} amount - base damage
+   * @param {{x,z}} knockbackDir - normalized direction
+   * @param {number} basePower - base knockback strength
+   * @param {Player} [attacker] - if provided, uses HP ratio between players (for collisions)
+   */
+  takeDamage(amount, knockbackDir, basePower, attacker) {
     if (!this.alive) return;
 
     // Shield reduces damage and knockback
@@ -253,8 +259,16 @@ export class Player {
 
     this.hp = Math.max(0, this.hp - dmg);
 
-    const hpRatio = this.maxHp / Math.max(this.hp, 1);
-    const effectivePower = kb * Math.min(hpRatio, KNOCKBACK_CAP);
+    let effectivePower;
+    if (attacker) {
+      // Collision knockback: ratio of attacker HP to target HP
+      const ratio = attacker.hp / Math.max(this.hp, 1);
+      effectivePower = kb * Math.min(ratio, KNOCKBACK_CAP);
+    } else {
+      // Spell knockback: depends only on target's HP
+      const ratio = this.maxHp / Math.max(this.hp, 1);
+      effectivePower = kb * Math.min(ratio, KNOCKBACK_CAP);
+    }
 
     this.velocity.x += knockbackDir.x * effectivePower;
     this.velocity.z += knockbackDir.z * effectivePower;

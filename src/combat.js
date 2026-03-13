@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  PLAYER_RADIUS, MAX_HP,
+  PLAYER_RADIUS,
   BODY_COLLISION_SPEED_THRESHOLD,
   BODY_COLLISION_DAMAGE_FACTOR,
   BODY_COLLISION_KNOCKBACK_FACTOR,
@@ -76,24 +76,21 @@ export function checkCollisions(players, spells) {
           spell.latchPos = spell.latchTarget.getPosition().clone();
         }
       } else if (spell.type === 'dash') {
-        // Dash: hit the target AND bounce back the dasher based on target's HP
+        // Dash: collision-style knockback (HP ratio between players)
         const dist = _dist2D(spellPos, playerPos);
         if (dist < spell.def.radius + PLAYER_RADIUS && !spell.dashHit) {
-          // Damage target normally
           _dir.set(playerPos.x - spellPos.x, 0, playerPos.z - spellPos.z).normalize();
-          player.takeDamage(spell.def.damage, _dir, spell.def.knockback);
+          // Target knockback uses attacker/target HP ratio
+          player.takeDamage(spell.def.damage, _dir, spell.def.knockback, spell.owner);
           spawnHitFlash(playerPos);
           events.push({ type: 'hit', target: player, spell: spell.def.name });
 
-          // Reverse knockback on the dasher, proportional to target's HP
-          // More HP on target = harder the bounce-back
-          const targetHpRatio = player.hp / MAX_HP; // 1.0 at full, 0.0 at dead
-          const bouncePower = spell.def.knockback * (1 + targetHpRatio * 3);
+          // Reverse knockback on dasher uses target/dasher HP ratio
           const reverseDir = { x: -_dir.x, z: -_dir.z };
-          spell.owner.takeDamage(spell.def.damage * targetHpRatio, reverseDir, bouncePower);
+          spell.owner.takeDamage(spell.def.damage * 0.5, reverseDir, spell.def.knockback, player);
           spawnHitFlash(spell.owner.getPosition());
 
-          spell.dashHit = true; // only hit once per dash
+          spell.dashHit = true;
         }
       }
     }
@@ -169,29 +166,26 @@ export function checkPlayerCollisions(players, dt) {
       const dirAtoB = { x: dx / d, z: dz / d };
       const dirBtoA = { x: -dirAtoB.x, z: -dirAtoB.z };
 
-      // Damage and knockback scale with attacker's speed AND defender's HP
-      // Higher HP target = more bounce-back on the attacker
+      // Knockback uses HP ratio between attacker and target
       if (aSpeed > BODY_COLLISION_SPEED_THRESHOLD * 0.5) {
-        const bHpRatio = b.hp / MAX_HP;
         const damage = aSpeed * BODY_COLLISION_DAMAGE_FACTOR;
         const knockback = aSpeed * BODY_COLLISION_KNOCKBACK_FACTOR;
 
-        // A damages B
-        b.takeDamage(damage, dirAtoB, knockback);
-        // A gets bounce-back proportional to B's HP
-        a.takeDamage(damage * bHpRatio, dirBtoA, knockback * (1 + bHpRatio * 2));
+        // A hits B: knockback scales with A's HP / B's HP
+        b.takeDamage(damage, dirAtoB, knockback, a);
+        // B bounces A back: knockback scales with B's HP / A's HP
+        a.takeDamage(damage * 0.5, dirBtoA, knockback, b);
         spawnHitFlash(bPos);
       }
 
       if (bSpeed > BODY_COLLISION_SPEED_THRESHOLD * 0.5) {
-        const aHpRatio = a.hp / MAX_HP;
         const damage = bSpeed * BODY_COLLISION_DAMAGE_FACTOR;
         const knockback = bSpeed * BODY_COLLISION_KNOCKBACK_FACTOR;
 
-        // B damages A
-        a.takeDamage(damage, dirBtoA, knockback);
-        // B gets bounce-back proportional to A's HP
-        b.takeDamage(damage * aHpRatio, dirAtoB, knockback * (1 + aHpRatio * 2));
+        // B hits A: knockback scales with B's HP / A's HP
+        a.takeDamage(damage, dirBtoA, knockback, b);
+        // A bounces B back: knockback scales with A's HP / B's HP
+        b.takeDamage(damage * 0.5, dirAtoB, knockback, a);
         spawnHitFlash(aPos);
       }
     }
