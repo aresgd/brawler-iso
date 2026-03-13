@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MAX_HP, PLAYER_SPEED, PLAYER_RADIUS, PLAYER_HEIGHT, SPELLS, KNOCKBACK_CAP, KNOCKUP_FACTOR } from './config.js';
+import { MAX_HP, PLAYER_SPEED, PLAYER_RADIUS, PLAYER_HEIGHT, SPELLS, KNOCKBACK_CAP } from './config.js';
 import { scene } from './scene.js';
 import { getMovementVector, isKeyJustPressed, mouseWorld } from './input.js';
 
@@ -117,9 +117,9 @@ export class Player {
   update(dt) {
     if (!this.alive) return;
 
-    // Movement input
+    // Movement input (only when grounded)
     const move = getMovementVector(this.bindings);
-    if (move.x !== 0 || move.z !== 0) {
+    if (this.grounded && (move.x !== 0 || move.z !== 0)) {
       this.velocity.x += move.x * PLAYER_SPEED * dt * 5;
       this.velocity.z += move.z * PLAYER_SPEED * dt * 5;
     }
@@ -195,13 +195,9 @@ export class Player {
     const hpRatio = this.maxHp / Math.max(this.hp, 1);
     const effectivePower = basePower * Math.min(hpRatio, KNOCKBACK_CAP);
 
+    // Horizontal knockback only
     this.velocity.x += knockbackDir.x * effectivePower;
     this.velocity.z += knockbackDir.z * effectivePower;
-
-    const launchSpeed = KNOCKUP_FACTOR * effectivePower;
-    const maxLaunchForAirtime = 30;
-    this.velocity.y = Math.min(launchSpeed, maxLaunchForAirtime);
-    this.grounded = false;
 
     // Flash the body on hit
     this._flashHit();

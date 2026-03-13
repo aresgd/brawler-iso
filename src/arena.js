@@ -5,13 +5,115 @@ import {
 } from './config.js';
 import { scene } from './scene.js';
 
+function _makePlayTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // Dark blue-gray stone base
+  ctx.fillStyle = '#1e1e3a';
+  ctx.fillRect(0, 0, size, size);
+
+  // Tile grid pattern
+  const tileSize = 64;
+  ctx.strokeStyle = 'rgba(60, 60, 100, 0.4)';
+  ctx.lineWidth = 2;
+  for (let x = 0; x <= size; x += tileSize) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke();
+  }
+  for (let y = 0; y <= size; y += tileSize) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke();
+  }
+
+  // Subtle noise / grain on each tile
+  for (let tx = 0; tx < size; tx += tileSize) {
+    for (let ty = 0; ty < size; ty += tileSize) {
+      const brightness = Math.random() * 8 - 4;
+      ctx.fillStyle = `rgba(${brightness > 0 ? 100 : 0}, ${brightness > 0 ? 100 : 0}, ${brightness > 0 ? 140 : 20}, 0.08)`;
+      ctx.fillRect(tx + 2, ty + 2, tileSize - 4, tileSize - 4);
+    }
+  }
+
+  // Scattered specks for texture
+  for (let i = 0; i < 300; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = Math.random() * 2;
+    ctx.fillStyle = `rgba(80, 80, 120, ${Math.random() * 0.15})`;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(4, 4);
+  return tex;
+}
+
+function _makeDangerTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // Dark red-brown base
+  ctx.fillStyle = '#3a1808';
+  ctx.fillRect(0, 0, size, size);
+
+  // Lava cracks
+  ctx.strokeStyle = 'rgba(255, 100, 20, 0.5)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 20; i++) {
+    ctx.beginPath();
+    let x = Math.random() * size;
+    let y = Math.random() * size;
+    ctx.moveTo(x, y);
+    for (let j = 0; j < 5; j++) {
+      x += (Math.random() - 0.5) * 80;
+      y += (Math.random() - 0.5) * 80;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // Glow spots along cracks
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = 4 + Math.random() * 12;
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, 'rgba(255, 120, 30, 0.3)');
+    grad.addColorStop(1, 'rgba(255, 60, 10, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // Dark rocky patches
+  for (let i = 0; i < 100; i++) {
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = Math.random() * 3;
+    ctx.fillStyle = `rgba(20, 8, 2, ${Math.random() * 0.3})`;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 3);
+  return tex;
+}
+
 export function createArena() {
   // === Play area (safe zone) ===
+  const playTex = _makePlayTexture();
   const playGeo = new THREE.RingGeometry(DEATH_ZONE_INNER_RADIUS, PLAY_ZONE_RADIUS, 64);
   const playMat = new THREE.MeshStandardMaterial({
-    color: 0x1e1e3a,
-    roughness: 0.7,
-    metalness: 0.3,
+    color: 0x2a2a4a,
+    map: playTex,
+    roughness: 0.75,
+    metalness: 0.2,
     side: THREE.DoubleSide,
   });
   const playZone = new THREE.Mesh(playGeo, playMat);
@@ -36,9 +138,11 @@ export function createArena() {
   scene.add(centerHole);
 
   // === Danger zone ===
+  const dangerTex = _makeDangerTexture();
   const dangerGeo = new THREE.RingGeometry(PLAY_ZONE_RADIUS, DANGER_ZONE_RADIUS, 64);
   const dangerMat = new THREE.MeshStandardMaterial({
-    color: 0x4a2010,
+    color: 0x5a2a10,
+    map: dangerTex,
     roughness: 0.6,
     metalness: 0.3,
     emissive: 0x331100,

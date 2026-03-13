@@ -31,8 +31,8 @@ export class Bot {
       this.thinkTimer = 0.1 + Math.random() * 0.1;
     }
 
-    // Apply movement
-    if (this.moveDir.x !== 0 || this.moveDir.z !== 0) {
+    // Apply movement (only when grounded — can't steer mid-air)
+    if (p.grounded && (this.moveDir.x !== 0 || this.moveDir.z !== 0)) {
       p.velocity.x += this.moveDir.x * PLAYER_SPEED * dt * 5;
       p.velocity.z += this.moveDir.z * PLAYER_SPEED * dt * 5;
     }
