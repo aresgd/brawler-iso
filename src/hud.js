@@ -11,7 +11,7 @@ export function initHUD(players) {
       const pip = document.createElement('div');
       pip.className = 'cooldown-pip ready';
       pip.id = `${prefix}-cd-${name}`;
-      pip.textContent = SPELLS[name].key.split(' / ')[p.index];
+      pip.textContent = SPELLS[name].key;
       container.appendChild(pip);
     }
   }

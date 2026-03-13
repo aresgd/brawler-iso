@@ -5,10 +5,10 @@ import { Player } from './player.js';
 import { Bot } from './bot.js';
 import { applyPhysics } from './physics.js';
 import { createSpell, updateSpells, getActiveSpells, clearAllSpells } from './spells.js';
-import { checkCollisions, checkPlayerCollisions } from './combat.js';
+import { checkCollisions, checkPlayerCollisions, resetCollisionCooldowns } from './combat.js';
 import { updateInputState, updateMouseWorld } from './input.js';
 import { initHUD, updateHUD, showCenterMessage } from './hud.js';
-import { ROUND_START_DELAY, ROUND_END_DELAY, WINS_TO_MATCH } from './config.js';
+import { ROUND_END_DELAY, WINS_TO_MATCH } from './config.js';
 
 const SPAWN_POSITIONS = [
   new THREE.Vector3(-8, 0, 0),
@@ -178,6 +178,7 @@ function checkRoundEnd() {
 
 function resetRound() {
   clearAllSpells();
+  resetCollisionCooldowns();
   for (let i = 0; i < players.length; i++) {
     players[i].reset(SPAWN_POSITIONS[i].clone());
   }

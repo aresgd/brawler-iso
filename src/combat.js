@@ -109,6 +109,10 @@ export function checkCollisions(players, spells) {
 
 const _collisionCooldowns = new Map(); // "i-j" -> timer
 
+export function resetCollisionCooldowns() {
+  _collisionCooldowns.clear();
+}
+
 export function checkPlayerCollisions(players, dt) {
   // Tick cooldowns
   for (const [key, timer] of _collisionCooldowns) {

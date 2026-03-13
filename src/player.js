@@ -210,10 +210,14 @@ export class Player {
   _flashHit() {
     this.group.traverse((child) => {
       if (child.isMesh && child.material.emissive) {
-        const orig = child.material.emissiveIntensity;
+        // Store base intensity once to avoid race conditions on rapid hits
+        if (child.userData._baseEmissive === undefined) {
+          child.userData._baseEmissive = child.material.emissiveIntensity;
+        }
         child.material.emissiveIntensity = 2.0;
-        setTimeout(() => {
-          child.material.emissiveIntensity = orig;
+        clearTimeout(child.userData._flashTimeout);
+        child.userData._flashTimeout = setTimeout(() => {
+          child.material.emissiveIntensity = child.userData._baseEmissive;
         }, 100);
       }
     });
@@ -240,8 +244,13 @@ export class Player {
     this.activeHook = null;
     this.group.traverse((child) => {
       if (child.isMesh) {
-        child.material.transparent = false;
-        child.material.opacity = 1;
+        // Preserve transparent flag for materials that need it (e.g. ground ring)
+        if (child === this.groundRing) {
+          child.material.opacity = 0.6;
+        } else {
+          child.material.transparent = false;
+          child.material.opacity = 1;
+        }
       }
     });
   }
